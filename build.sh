@@ -1,130 +1,194 @@
-#!/usr/bin/env bash
-#
-SECONDS=0
-ZIPNAME="NabillaLaurens-New-Ginkgo-$(TZ=Asia/Jakarta date +"%Y%m%d-%H%M").zip"
-TC_DIR="$(pwd)/../tc/"
-CLANG_DIR="${TC_DIR}clang"
-GCC_64_DIR="${TC_DIR}aarch64-linux-android-4.9"
-GCC_32_DIR="${TC_DIR}arm-linux-androideabi-4.9"
-AK3_DIR="$(pwd)/AnyKernel3"
-DEFCONFIG="vendor/ginkgo_defconfig"
+#!/bin/sh
+# Compile script for Compiling kernel
+# Copyright (c) Malkist
 
-# ===== Set timezone =====
-export TZ=Asia/Jakarta;
-
-# ===== TELEGRAM CONFIG =====
+# Setup
+PHONE="Ginkgo"
+DEFCONFIG=vendor/ginkgo_defconfig
+COMPILERDIR="$(pwd)/../aosp-clang"
+CLANG="AOSP Clang"
+CODENAME="[myLove]"
+ZIPNAME="NabillaLaurens-New-$CODENAME-$PHONE-$(date '+%Y%m%d-%H%M').zip"
+CAPTION="NabillaLaurens Kernel $PHONE Compile Complete, Have A Brick Day"
 BOT_TOKEN="7868194496:AAGY7WwRRbeCOPYOnczoCPh2psC43Q0F3JI"
 CHAT_ID="-1002287610863"
-API_URL="https://api.telegram.org/bot${BOT_TOKEN}"
+MESSAGE="• Build For $PHONE Started •"
+MESSAGE_ERROR="• Error Build For $PHONE Aborted •"
+kernel="out/arch/arm64/boot/Image.gz"
+dtb="out/arch/arm64/boot/dtb.img"
+dtbo="out/arch/arm64/boot/dtbo.img"
+export KBUILD_BUILD_USER=malkist
+export KBUILD_BUILD_HOST=phone
 
-tg_msg() {
-curl -s -X POST "${API_URL}/sendMessage" \
--d chat_id="${CHAT_ID}" \
--d text="$1" \
--d parse_mode=HTML > /dev/null
+# Header
+cyan="\033[96m"
+green="\033[92m"
+red="\033[91m"
+blue="\033[94m"
+yellow="\033[93m"
+
+echo -e "$pink===========================\033[0m"
+echo -e "$pink= START COMPILING KERNEL  =\033[0m"
+echo -e "$pink===========================\033[0m"
+
+echo -e "$blue...KSABAR...\033[0m"
+
+echo -e -ne "$green== (10%)\r"
+sleep 0.7
+echo -e -ne "$green=====                     (33%)\r"
+sleep 0.7
+echo -e -ne "$green=============             (66%)\r"
+sleep 0.7
+echo -e -ne "$green=======================   (100%)\r"
+echo -ne "\n"
+
+echo -e -n "$yellow\033[104mPRESS ENTER TO CONTINUE\033[0m"
+read P
+echo  $P
+
+# Clone Google Clang
+function clang() {
+if [ -d $COMPILERDIR ] ; then
+echo -e " "
+echo -e "\n$green[!] Lets's Build UwU...\033[0m \n"
+else
+echo -e " "
+echo -e "\n$red[!] AOSP-clang Dir Not Found!!!\033[0m \n"
+sleep 2
+echo -e "$green[+] Wait.. Cloning AOSP-clang...\033[0m \n"
+sleep 2
+wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/4d2864f08ff2c290563fb903a5156e0504620bbe/clang-r563880c.tar.gz -O "aosp-clang.tar.gz"
+    rm -rf $COMPILERDIR 
+    mkdir $COMPILERDIR 
+    tar -xvf aosp-clang.tar.gz -C $COMPILERDIR
+    rm -rf aosp-clang.tar.gz
+sleep 1
+echo
+echo -e "\n$green[!] Lets's Build UwU...\033[0m \n"
+sleep 1
+fi
 }
 
-tg_file() {
-curl -s -X POST "${API_URL}/sendDocument" \
--F chat_id="${CHAT_ID}" \
--F document=@"$1" \
--F caption="$2" > /dev/null
+# URL API Telegram untuk mengirim pesan
+URL="https://api.telegram.org/bot$BOT_TOKEN/sendMessage"
+
+# Data yang akan dikirimkan
+DATA="chat_id=$CHAT_ID&text=$MESSAGE"
+
+# Kirim permintaan POST ke API Telegram
+curl -s -X POST "$URL" -d "$DATA"
+
+function clean() {
+    echo -e "\n"
+    echo -e "$red[!] CLEANING UP \\033[0m"
+    echo -e "\n"
+    rm -rf log.txt
+    rm -rf out
+    make mrproper
 }
 
-# ===== ENV =====
-export PATH="$CLANG_DIR/bin:$PATH"
-export LD_LIBRARY_PATH="$CLANG_DIR/lib:$LD_LIBRARY_PATH"
-export KBUILD_BUILD_VERSION="1"
-export LOCALVERSION
+# Make Defconfig
 
-# ===== START NOTIF =====
-tg_msg "🚀 <b>Kernel Build Started</b>
-Device: <b>Redmi Note 8 (Ginkgo)</b>
-Time: <code>$(date)</code>"
-
-# ===== CLANG =====
-if ! [ -d "${CLANG_DIR}" ]; then
-tg_msg "⚙️ Cloning Clang..."
-git clone --depth=1 https://gitlab.com/nekoprjkt/aosp-clang ${CLANG_DIR} || {
-tg_msg "❌ <b>Failed cloning Clang</b>"
-}
+function build_kernel() {
+    export PATH="$COMPILERDIR/bin:$PATH"
+    make -j$(nproc --all) O=out ARCH=arm64 ${DEFCONFIG}
+    if [ $? -ne 0 ]
+then
+    echo -e "\n"
+    echo -e "$red [!] BUILD FAILED \033[0m"
+    echo -e "\n"
+else
+    echo -e "\n"
+    echo -e "$green==================================\033[0m"
+    echo -e "$green= [!] START BUILD ${DEFCONFIG}\033[0m"
+    echo -e "$green==================================\033[0m"
+    echo -e "\n"
 fi
 
-# ===== GCC 64 =====
-if ! [ -d "${GCC_64_DIR}" ]; then
-tg_msg "⚙️ Cloning GCC 64..."
-git clone --depth=1 -b lineage-19.1 \
-https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9.git \
-${GCC_64_DIR} || {
-tg_msg "❌ <b>Failed cloning GCC 64</b>"
-}
-fi
+# Speed up build process
+MAKE="./makeparallel"
 
-# ===== GCC 32 =====
-if ! [ -d "${GCC_32_DIR}" ]; then
-tg_msg "⚙️ Cloning GCC 32..."
-git clone --depth=1 -b lineage-19.1 \
-https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_arm_arm-linux-androideabi-4.9.git \
-${GCC_32_DIR} || {
-tg_msg "❌ <b>Failed cloning GCC 32</b>"
-}
-fi
+# Build Start Here
 
-mkdir -p out
-make O=out ARCH=arm64 $DEFCONFIG
+   make -j$(nproc --all) \
+    O=out \
+    ARCH=arm64 \
+    LLVM=1 \
+    LLVM_IAS=1 \
+    AR=llvm-ar \
+    NM=llvm-nm \
+    LD=ld.lld \
+    OBJCOPY=llvm-objcopy \
+    OBJDUMP=llvm-objdump \
+    STRIP=llvm-strip \
+    CC=clang \
+    CROSS_COMPILE=aarch64-linux-gnu- \
+    CROSS_COMPILE_ARM32=arm-linux-gnueabi- 2>&1 | tee log.txt
+    
+    # Zipping
 
-# ===== BUILD =====
-tg_msg "🔨 <b>Compilation Started</b>"
-make -j$(nproc --all) O=out \
-ARCH=arm64 \
-CC=clang \
-LD=ld.lld \
-AR=llvm-ar \
-AS=llvm-as \
-NM=llvm-nm \
-OBJCOPY=llvm-objcopy \
-OBJDUMP=llvm-objdump \
-STRIP=llvm-strip \
-CROSS_COMPILE=aarch64-linux-android- \
-CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-CLANG_TRIPLE=aarch64-linux-gnu- \
-Image.gz-dtb \
-dtbo.img \
-dtb.img 2>&1 | tee log.txt
-
-# ===== CHECK RESULT =====
-if [ -f "out/arch/arm64/boot/Image.gz-dtb" ] && [ -f "out/arch/arm64/boot/dtbo.img" ] && [ -f "out/arch/arm64/boot/dtb.img" ]; then
+    if [ -f out/arch/arm64/boot/Image ] ; then
             finderr
-tg_msg "✅ <b>Build Success</b>
-Zipping kernel..."
+            echo -e "$green=============================================\033[0m"
+            echo -e "$green= [+] Zipping up ...\033[0m"
+            echo -e "$green=============================================\033[0m"
+    if [ -d "$AK3_DIR" ]; then
+            cp -r $AK3_DIR AnyKernel2
+        elif ! git clone -q https://github.com/malkist01/AnyKernel2.git -b main; then
+                echo -e "\nAnyKernel2 repo not found locally and couldn't clone from GitHub! Aborting..."
+        fi
+            cp $kernel $dtb $dtbo AnyKernel2
+            cd AnyKernel2
+            git checkout ginkgo &> /dev/null
+            zip -r9 "../$ZIPNAME" * -x .git README.md *placeholder
+            cd ..
+            rm -rf AnyKernel2
+    fi
 
-if [ -d "$AK3_DIR" ]; then
-cp -r $AK3_DIR AnyKernel3
-else
-git clone -q https://github.com/malkist01/AnyKernel2 || {
-tg_msg "❌ Failed cloning AnyKernel3"
+
+    if [ -e "$ZIPNAME" ] ; then
+    echo -e "$green===========================\033[0m"
+    echo -e "$green=  SUCCESS COMPILE KERNEL \033[0m"
+    echo -e "$green=  Device     : $PHONE \033[0m"
+    echo -e "$green=  Defconfig  : $DEFCONFIG \033[0m"
+    echo -e "$green=  Toolchain  : $CLANG \033[0m"
+    echo -e "$green=  Codename   : $CODENAME \033[0m"
+    echo -e "$green=  Zipname    : $ZIPNAME \033[0m"
+    echo -e "$green=  Completed in $((SECONDS / 60)) minute(s) and $((SECONDS % 60)) second(s) \033[0m "
+    echo -e "$green=  Have A Brick Day Nihahahah \033[0m"
+    echo -e "$green===========================\033[0m"
+    else
+    echo -e "$red [!] FIX YOUR KERNEL SOURCE BRUH !?\033[0m"
+    send_log
+    fi
+
+    if [ -e "$ZIPNAME" ] ; then 
+    echo -e "$green=============================================\033[0m"
+    echo -e "$green= [+] Uploading ...\033[0m"
+    echo -e "$green=============================================\033[0m"
+
+    URL="https://api.telegram.org/bot$BOT_TOKEN/sendDocument"
+
+    curl -s -X POST "$URL" -F document=@"$ZIPNAME" -F caption="$CAPTION" -F chat_id="$CHAT_ID"
+
+    fi
+
 }
-fi
 
-cp out/arch/arm64/boot/Image.gz-dtb AnyKernel3
-cp out/arch/arm64/boot/dtbo.img AnyKernel3
-cp out/arch/arm64/boot/dtb.img AnyKernel3
+# Fungsi untuk mengirim pesan dengan file
+function send_log() {
+    # File yang ingin dikirim
+    FILE="log.txt"
 
-rm -rf *zip
-cd AnyKernel3
-git checkout main &> /dev/null
-zip -r9 "../$ZIPNAME" * -x '*.git*' README.md *placeholder
-cd ..
+    # URL untuk mengirim file dengan caption
+    URL="https://api.telegram.org/bot$BOT_TOKEN/sendDocument"
 
-# ===== SEND ZIP =====
-tg_file "$ZIPNAME" "📦 Kernel Build Finished
-⏱ Time: $((SECONDS / 60))m $((SECONDS % 60))s"
+    # Perintah curl untuk mengirim file
+    curl -F "chat_id=$CHAT_ID" -F "document=@${FILE}" -F "caption=${MESSAGE_ERROR}" $URL
 
-rm -rf AnyKernel3
-rm -rf out/arch/arm64/boot
-else
-tg_msg "❌ <b>Build Failed</b>
-Check <code>log.txt</code>"
-fi
+}
 
-tg_msg "🎉 <b>Done!</b>"
+# execute
+clang
+clean
+build_kernel
