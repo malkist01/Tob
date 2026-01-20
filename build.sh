@@ -94,6 +94,7 @@ dtb.img 2>&1 | tee log.txt
 
 # ===== CHECK RESULT =====
 if [ -f "out/arch/arm64/boot/Image.gz-dtb" ] && [ -f "out/arch/arm64/boot/dtbo.img" ] && [ -f "out/arch/arm64/boot/dtb.img" ]; then
+            finderr
 tg_msg "✅ <b>Build Success</b>
 Zipping kernel..."
 
